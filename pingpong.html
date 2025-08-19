@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ping-pong</title>
+
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+            color: goldenrod;
+        }
+        .container {
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            row-gap: 8px;
+            padding: 8px 0;
+            flex-direction: column;
+            width: 128px;
+            height: 576px;
+        }
+        .score {
+            font-size: large;
+            text-align: center;
+        }
+        .field {
+            height: 300px;
+            border: 1px solid goldenrod;
+            position: relative;
+        }
+        button {
+            background-color: goldenrod;
+            box-shadow: none;
+            border: none;
+        }
+        input[type='radio'] {
+            accent-color: goldenrod;
+        }
+        #player1, #player2, #ball {
+            position: absolute;
+            width: 10px;
+            height: 30px;
+            background: goldenrod;
+            top: 120px;
+        }
+        #player2 {
+            right: 0;
+        }
+        #ball {
+            height: 10px;
+            top: 130px;
+            left: 59px;
+        }
+
+        .controls p {
+            padding-left: 8px;
+        }
+        .controls ul {
+            list-style-type: square;
+            padding-inline-start: 24px;
+            font-size: small;
+        }
+        .title {
+            text-align: center;
+        }
+        .actions, .mode {
+            font-size: small;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">PING-PONG 1.0</div>
+
+        <div class="mode">
+            <input type="radio" name="mode" value="pvp" checked onclick="setMode('pvp')"><label for="pvp">PvP</label>
+            <input type="radio" name="mode" value="pve" onclick="setMode('pve')"><label for="pve">PvE</label>
+        </div>
+
+        <div class="actions">
+            <button onclick="reset()">reset</button>
+            <button onclick="pause()">pause</button>
+        </div>
+
+        <div class="score">
+            <span class="player1">0</span>:<span class="player2">0</span>
+        </div>
+
+        <div class="result"></div>
+        <div class="field">
+            <span id="player1"></span>
+            <span id="player2"></span>
+            <span id="ball"></span>
+        </div>
+
+        <div class="controls">
+            <p>CONTROLS:</p>
+            <ul>
+                <li>player 1: w/s</li>
+                <li>player 2: arrows</li>
+                <li>play/pause: space</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
+<script>
+    const field = document.querySelector('.field');
+    const ball = document.getElementById('ball');
+    const initialBallPosition = getPosition(ball);
+    const initialBallSpeed = 10;
+    const initialPlayerSpeed = 15;
+    const player1 = document.getElementById('player1');
+    const player2 = document.getElementById('player2');
+    const initialPlayer1Position = getPosition(player1);
+    const initialPlayer2Position = getPosition(player2);
+    const startDelay = 1500;
+
+    let mode = 'pvp';
+    let isGoingRight = true;
+    let isGoingUp = true;
+    let timeSinceGoal = 0;
+    let player1Score = 0;
+    let player2Score = 0;
+    let ballSpeed = initialBallSpeed;
+    let playerSpeed = initialPlayerSpeed;
+    let isPaused = false;
+    let game;
+
+    setTimeout(() => game = play(), startDelay);
+
+    function move() {
+        if (isPaused) {
+            return;
+        }
+        const ballPosition = getPosition(ball);
+        const fieldBounds = field.getBoundingClientRect();
+
+        if (isGoingRight && mode === 'pve') {
+            autoMovePlayer2(ballPosition)
+        }
+
+        if (isBallCollidingWithPlayer(ballPosition)) {
+            isGoingRight = !isGoingRight;
+        }
+        if (isGoal(ballPosition, fieldBounds)) {
+            processGoal(ballPosition);
+            return;
+        }
+
+        timeSinceGoal++;
+
+        if (timeSinceGoal > 500) {
+            timeSinceGoal = 0;
+            increaseSpeed();
+        }
+
+        if (ballPosition.y <= 1 || ballPosition.y >= fieldBounds.height - ballPosition.height - 1) {
+            isGoingUp = !isGoingUp;
+        }
+
+        const newBallTop = ballPosition.y + (isGoingUp ? -3 : 1);
+        const newBallLeft = ballPosition.x + (isGoingRight ? 1 : -3);
+
+        ball.style.top = newBallTop + 'px';
+        ball.style.left = newBallLeft + 'px';
+    }
+
+    function autoMovePlayer2(ballPosition) {
+        const playerPosition = getPosition(player2);
+        const isBallAbove = ballPosition.y + ballPosition.height < playerPosition.y;
+        const isBallBelow = ballPosition.y > playerPosition.y + playerPosition.height;
+
+        if (isBallAbove || isBallBelow) {
+            movePlayer(player2, isBallAbove);
+        }
+    }
+
+    function processGoal(ballPosition) {
+        if (ballPosition.x <= 0) {
+            player2Score++;
+        } else {
+            player1Score++;
+        }
+        updateScore();
+
+        timeSinceGoal = 0;
+        isGoingRight = Math.random() < 0.5;
+        isGoingUp = Math.random() < 0.5;
+        isPaused = true;
+        resetBallPosition();
+        resetPlayerPosition();
+
+        setTimeout(() => isPaused = false, startDelay);
+    }
+
+    function resetPlayerPosition() {
+        player1.style.top = initialPlayer1Position.y + 'px';
+        player2.style.top = initialPlayer2Position.y + 'px';
+    }
+
+    function resetBallPosition() {
+        ball.style.top = initialBallPosition.y + 'px';
+        ball.style.left = initialBallPosition.x + 'px';
+    }
+
+    function isGoal(ballPosition, fieldBounds) {
+        return ballPosition.x + ballPosition.width >= fieldBounds.width
+            || ballPosition.x <= 0;
+    }
+
+    function pause() {
+        isPaused = !isPaused;
+    }
+
+    function increaseSpeed() {
+        clearInterval(game);
+        ballSpeed++;
+        playerSpeed++;
+        game = play();
+    }
+
+    function play() {
+        return setInterval(move, parseInt(500 / ballSpeed));
+    }
+
+    function isBallCollidingWithPlayer(ballPosition) {
+        const playerPosition = getPosition(isGoingRight ? player2 : player1);
+
+        const isCollidingOnX = isGoingRight
+            ? ballPosition.x + ballPosition.width > playerPosition.x
+            : ballPosition.x < playerPosition.x + playerPosition.width
+        const isCollidingOnY = ballPosition.y >= playerPosition.y
+            && ballPosition.y <= playerPosition.y + playerPosition.height;
+
+        return isCollidingOnX && isCollidingOnY;
+    }
+
+    function getPosition(element) {
+        const bounds = element.getBoundingClientRect();
+        const elementLeft = bounds.left;
+        const elementTop = bounds.top;
+        const fieldBounds = field.getBoundingClientRect();
+
+        return {
+            x: elementLeft - fieldBounds.left,
+            y: elementTop - fieldBounds.top,
+            height: bounds.height,
+            width: bounds.width
+        };
+    }
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'w') {
+            movePlayer(player1, true);
+        }
+        if (event.key === 's') {
+            movePlayer(player1, false);
+        }
+        if (event.key === ' ') {
+            pause();
+        }
+
+        if (mode === 'pvp') {
+            if (event.key === 'ArrowUp') {
+                movePlayer(player2, true);
+            }
+            if (event.key === 'ArrowDown') {
+                movePlayer(player2, false);
+            }
+        }
+    });
+
+    function movePlayer(player, up) {
+        if (isPaused) {
+            return;
+        }
+        const fieldHeight = field.clientHeight;
+        const playerPosition = getPosition(player);
+        const playerTop = playerPosition.y;
+        const newTop = up
+            ? Math.max(playerTop - playerSpeed, 0)
+            : Math.min(playerTop + playerSpeed, fieldHeight - playerPosition.height);
+        player.style.top = newTop + 'px';
+    }
+
+    function reset() {
+        isPaused = true;
+        mode = 'pvp';
+        document.querySelector(`input[name="mode"][value="${mode}"]`).checked = true;
+        ballSpeed = initialBallSpeed;
+        playerSpeed = initialPlayerSpeed;
+        resetBallPosition();
+        resetPlayerPosition();
+
+        player1Score = 0;
+        player2Score = 0;
+        updateScore();
+    }
+
+    function updateScore() {
+        document.querySelector('.score>.player1').innerText = player1Score;
+        document.querySelector('.score>.player2').innerText = player2Score;
+    }
+
+    function setMode(newMode) {
+        isPaused = true;
+        reset();
+        mode = newMode;
+        document.querySelector(`input[name="mode"][value="${mode}"]`).checked = true;
+        setTimeout(() => isPaused = false, startDelay);
+    }
+</script>
